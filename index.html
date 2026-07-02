@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeon Typer — 8-Bit Retro Word Battle</title>
+    <meta name="description" content="Help Arjun escape the 5 floors of the terrifying dungeon by typing falling words in this 8-bit retro typing game.">
+    <!-- Google Fonts for retro pixel styles -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="arcade-container">
+        <!-- CRT Screen bezel effect wrapper -->
+        <div id="crt-screen" class="crt-flicker">
+            <div class="scanlines"></div>
+            <div class="crt-curve-overlay"></div>
+            
+            <header>
+                <h1 id="game-title">DUNGEON TYPER</h1>
+            </header>
+
+            <main id="game-canvas-wrapper">
+                <canvas id="gameCanvas" width="960" height="640"></canvas>
+            </main>
+
+            <footer>
+                <p id="controls-bar">TYPE THE FALLING WORDS TO DEFEAT MONSTERS  |  P: PAUSE</p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Script imports -->
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
