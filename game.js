@@ -322,6 +322,115 @@ function useShieldPotion() {
     }
 }
 
+// Visual Equipment Upgrades Drawing
+function drawHelmet(ctx, cx, cy, w, h) {
+    ctx.save();
+    // Iron Helmet base dome
+    ctx.fillStyle = "#7a7a85";
+    ctx.fillRect(cx + 38, cy + 5, 24, 22);
+
+    // Visor dark slit
+    ctx.fillStyle = "#1c1c1e";
+    ctx.fillRect(cx + 38, cy + 16, 24, 4);
+
+    // Silver metallic highlights
+    ctx.fillStyle = "#d1d1d6";
+    ctx.fillRect(cx + 42, cy + 7, 12, 2);
+    ctx.fillRect(cx + 38, cy + 9, 4, 6);
+
+    // Red Plume
+    ctx.fillStyle = "#ff3344";
+    // Plume stem
+    ctx.fillRect(cx + 48, cy - 5, 6, 10);
+    // Plume feather flowing backward
+    ctx.fillRect(cx + 38, cy - 3, 10, 5);
+    ctx.restore();
+}
+
+function drawMagicShield(ctx, cx, cy, w, h) {
+    ctx.save();
+    // Golden border trim (outer heater-shield shape)
+    ctx.fillStyle = "#ffd700";
+    ctx.beginPath();
+    ctx.moveTo(cx + 10, cy + 42);
+    ctx.lineTo(cx + 36, cy + 42);
+    ctx.lineTo(cx + 36, cy + 62);
+    ctx.lineTo(cx + 23, cy + 76);
+    ctx.lineTo(cx + 10, cy + 62);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sapphire blue body
+    ctx.fillStyle = "#0055ff";
+    ctx.beginPath();
+    ctx.moveTo(cx + 13, cy + 45);
+    ctx.lineTo(cx + 33, cy + 45);
+    ctx.lineTo(cx + 33, cy + 60);
+    ctx.lineTo(cx + 23, cy + 71);
+    ctx.lineTo(cx + 13, cy + 60);
+    ctx.closePath();
+    ctx.fill();
+
+    // Glowing white star/cross emblem in center
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(cx + 21, cy + 50, 4, 10);
+    ctx.fillRect(cx + 18, cy + 53, 10, 4);
+    ctx.restore();
+}
+
+function drawLegendarySword(ctx, cx, cy, w, h) {
+    ctx.save();
+    // Position sword in Arjun's left hand (replaces torch position)
+    ctx.translate(cx + 80, cy + 38);
+    ctx.rotate(Math.PI / 4); // rotate 45 degrees up-right
+
+    // Gold crossguard
+    ctx.fillStyle = "#ffd700";
+    ctx.fillRect(-8, -2, 16, 4);
+
+    // Gold pommel
+    ctx.fillRect(-2, 4, 4, 4);
+    // Handle grip
+    ctx.fillStyle = "#5c4033";
+    ctx.fillRect(-1.5, 0, 3, 5);
+
+    // Steel Blade
+    ctx.fillStyle = "#e5e5ea";
+    ctx.strokeStyle = "#00e5ff"; // Magic cyan glow!
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(-3, -38, 6, 36);
+    ctx.fill();
+    ctx.stroke();
+
+    // Blade tip
+    ctx.beginPath();
+    ctx.moveTo(-3, -38);
+    ctx.lineTo(0, -44);
+    ctx.lineTo(3, -38);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Spawn tiny flaming sword trail particles
+    if (Math.random() < 0.25) {
+        let swordX = cx + 80 + Math.random() * 20;
+        let swordY = cy + 38 - Math.random() * 25;
+        particles.push({
+            x: swordX,
+            y: swordY,
+            vx: (Math.random() - 0.3) * 1.5,
+            vy: -Math.random() * 1.5,
+            color: ["#ff4500", "#ffaa00", "#ff3300"][Math.floor(Math.random() * 3)],
+            alpha: 0.9,
+            decay: 0.04 + Math.random() * 0.03,
+            size: 2 + Math.random() * 2
+        });
+    }
+}
+
 // Register keyboard capture
 window.addEventListener("keydown", (e) => {
     pressedKeys[e.key] = true;
@@ -1225,6 +1334,11 @@ function drawCharacter(char, isPlayer) {
             ctx.fillStyle = "#8b4513";
             ctx.fillRect(cx, cy, char.w, char.h);
         }
+
+        // Draw Equipment Upgrades based on Floor Level
+        if (gameLevel >= 2) drawHelmet(ctx, cx, cy, char.w, char.h);
+        if (gameLevel >= 3) drawMagicShield(ctx, cx, cy, char.w, char.h);
+        if (gameLevel >= 4) drawLegendarySword(ctx, cx, cy, char.w, char.h);
 
         // Draw Hero Legendary Aura if higher levels
         if (gameLevel >= 2) {
