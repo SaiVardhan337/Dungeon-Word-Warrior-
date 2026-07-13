@@ -537,14 +537,32 @@ window.addEventListener("keyup", (e) => {
     pressedKeys[e.key] = false;
 });
 
-// Canvas click listener for Pause button and general overlay resume
+// Canvas click listener for Pause button, active items, and mobile keyboard focus
 canvas.addEventListener("click", (e) => {
     sounds.init(); // initialize Web Audio context
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (WIDTH / rect.width);
     const y = (e.clientY - rect.top) * (HEIGHT / rect.height);
 
+    // Focus mobile virtual keyboard input
+    let mInput = document.getElementById("mobile-input");
+    if (mInput) {
+        mInput.focus();
+    }
+
     if (gameState === STATE_PLAY) {
+        // Tappable Active Items Hotbar slots (x: 250 to 550, y: 545 to 590)
+        if (y >= 545 && y <= 590 && x >= 250 && x <= 550) {
+            if (x >= 250 && x < 340) {
+                useFreezeScroll();
+            } else if (x >= 340 && x < 440) {
+                useFireballScroll();
+            } else if (x >= 440 && x <= 550) {
+                useShieldPotion();
+            }
+            return;
+        }
+
         // Clicked Pause button in HUD (x: 605 to 710, y: 20 to 48)
         if (x >= 605 && x <= 710 && y >= 20 && y <= 48) {
             sounds.click();
@@ -556,6 +574,40 @@ canvas.addEventListener("click", (e) => {
         togglePause();
     }
 });
+
+// Mobile Input Capture Listener
+let mInput = document.getElementById("mobile-input");
+if (mInput) {
+    mInput.addEventListener("input", (e) => {
+        let val = mInput.value;
+        if (val.length > 0) {
+            let lastChar = val[val.length - 1];
+            if (gameState === STATE_PLAY) {
+                if (/[a-zA-Z]/.test(lastChar)) {
+                    handleTyping(lastChar.toLowerCase());
+                }
+            } else if (gameState === STATE_CUTSCENE) {
+                sounds.init();
+                sounds.click();
+                if (!cutsceneTextDone) {
+                    skipTypewriter();
+                } else {
+                    nextCutscenePanel();
+                }
+            } else if (gameState === STATE_LEVEL_CLEAR) {
+                sounds.pickup();
+                startLevel(gameLevel + 1);
+            } else if (gameState === STATE_GAME_OVER) {
+                sounds.pickup();
+                restartAdventure();
+            } else if (gameState === STATE_VICTORY) {
+                sounds.pickup();
+                resetGameVariables();
+            }
+            mInput.value = ""; // Keep it empty for next stroke
+        }
+    });
+}
 
 // Start the loop
 resetGameVariables();
@@ -1644,6 +1696,17 @@ function drawHUD() {
         let isBlink = Math.floor(Date.now() / 250) % 2 === 0;
         ctx.fillText(isBlink ? `❄️  TIME FROZEN: ${secondsLeft}s  ❄️` : `   TIME FROZEN: ${secondsLeft}s   `, WIDTH / 2, 525);
         ctx.restore();
+    } else {
+        // Mobile touch guide text
+        let isTouch = ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+        if (isTouch) {
+            ctx.save();
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#88869a";
+            ctx.font = '8px "Press Start 2P", monospace';
+            ctx.fillText("📱 TAP CANVAS TO SHOW KEYBOARD / USE ITEMS", WIDTH / 2, 525);
+            ctx.restore();
+        }
     }
 }
 

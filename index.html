@@ -29,10 +29,13 @@
             </main>
 
             <footer>
-                <p id="controls-bar">TYPE THE FALLING WORDS TO DEFEAT MONSTERS  |  P: PAUSE</p>
+                <p id="controls-bar">TYPE THE FALLING WORDS TO DEFEAT MONSTERS  |  ESC: PAUSE</p>
             </footer>
         </div>
     </div>
+
+    <!-- Hidden input to capture mobile keyboard typing -->
+    <input type="text" id="mobile-input" style="position: absolute; top: -1000px; left: -1000px; width: 1px; height: 1px; opacity: 0;" autocomplete="off" autocapitalize="off" spellcheck="false">
 
     <!-- Script imports -->
     <script src="audio.js"></script>
