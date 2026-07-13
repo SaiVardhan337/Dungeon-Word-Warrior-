@@ -149,6 +149,11 @@ let gameLevel = 1;
 window.gameLevel = 1; // set global for audio access
 let score = 0;
 
+// Typing analytics counters
+let levelCorrectKeys = 0;
+let levelTotalKeys = 0;
+let levelStartTime = 0;
+
 // Player attributes
 let player = {
     level: 1,
@@ -714,6 +719,11 @@ function startLevel(lvl) {
     correctCount = 0;
     failedCount = 0;
 
+    // Reset level typing analytics
+    levelCorrectKeys = 0;
+    levelTotalKeys = 0;
+    levelStartTime = Date.now();
+
     gameState = STATE_PLAY;
     sounds.startMusic();
     triggerScreenFlash("rgba(255, 255, 255, 0.4)", 15);
@@ -779,7 +789,9 @@ function handleTyping(letter) {
     if (targetWord) {
         // We are currently typing a locked word
         let nextChar = targetWord.text[targetWord.typed].toLowerCase();
+        levelTotalKeys++; // Record every keystroke attempt
         if (letter === nextChar) {
+            levelCorrectKeys++;
             targetWord.typed++;
             sounds.click();
             spawnTypeParticles(targetWord.x + targetWord.typed * 10, targetWord.y);
@@ -796,7 +808,9 @@ function handleTyping(letter) {
     } else {
         // No target word, target the closest matching word
         let matchedWords = activeWords.filter(w => w.text[0].toLowerCase() === letter);
+        levelTotalKeys++; // Record every keystroke attempt
         if (matchedWords.length > 0) {
+            levelCorrectKeys++;
             // Target the one lowest on the screen (highest Y) to prioritize threat
             matchedWords.sort((a, b) => b.y - a.y);
             targetWord = matchedWords[0];
@@ -1741,32 +1755,52 @@ function drawLevelClearOverlay() {
     ctx.textAlign = "center";
     ctx.fillStyle = "#00ff66";
     ctx.font = '28px "Press Start 2P", monospace';
-    ctx.fillText("FLOOR CLEARED!", WIDTH / 2, 170);
+    ctx.fillText("FLOOR CLEARED!", WIDTH / 2, 135);
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = '16px "Press Start 2P", monospace';
-    ctx.fillText(`Defeated: ${activeMonster.name}`, WIDTH / 2, 230);
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.fillText(`Defeated: ${activeMonster.name}`, WIDTH / 2, 175);
+
+    // Calculate Analytics
+    let elapsedSec = Math.max(0.1, (Date.now() - levelStartTime) / 1000);
+    let wpm = Math.round((levelCorrectKeys / 5) / (elapsedSec / 60));
+    let accuracy = levelTotalKeys > 0 ? Math.round((levelCorrectKeys / levelTotalKeys) * 100) : 100;
+    let errors = levelTotalKeys - levelCorrectKeys;
+
+    // Draw Analytics
+    ctx.fillStyle = "#00e5ff";
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillText("--- FLOOR STATISTICS ---", WIDTH / 2, 210);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = '11px "Press Start 2P", monospace';
+    ctx.fillText(`Speed: ${wpm} WPM   |   Accuracy: ${accuracy}%`, WIDTH / 2, 235);
+
+    ctx.fillStyle = "#88869a";
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillText(`Time: ${elapsedSec.toFixed(1)}s   |   Keys: ${levelTotalKeys} (Errors: ${errors})`, WIDTH / 2, 255);
 
     // Hero level-up info
     ctx.fillStyle = "#ffd700";
-    ctx.font = '18px "Press Start 2P", monospace';
-    ctx.fillText(`Arjun Leveled Up! Now LVL ${player.level}`, WIDTH / 2, 290);
+    ctx.font = '16px "Press Start 2P", monospace';
+    ctx.fillText(`Arjun Leveled Up! Now LVL ${player.level}`, WIDTH / 2, 300);
 
     ctx.fillStyle = "#88869a";
-    ctx.font = '12px "Press Start 2P", monospace';
-    ctx.fillText(`Max HP: +10 (${player.maxHp})`, WIDTH / 2, 335);
-    ctx.fillText(`Attack Power: +5 (${player.atk})`, WIDTH / 2, 360);
-    ctx.fillText(`Defense Power: +3 (${player.def})`, WIDTH / 2, 385);
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillText(`Max HP: +10 (${player.maxHp})  |  Atk: +5 (${player.atk})  |  Def: +3 (${player.def})`, WIDTH / 2, 330);
 
     // Item Reward Message
     ctx.fillStyle = "#00e5ff";
-    ctx.font = '13px "Press Start 2P", monospace';
-    ctx.fillText(levelClearRewardMsg, WIDTH / 2, 422);
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillText(levelClearRewardMsg, WIDTH / 2, 380);
 
-    ctx.font = '13px "Press Start 2P", monospace';
+    // Help Text
+    ctx.font = '12px "Press Start 2P", monospace';
     let isBlink = Math.floor(Date.now() / 500) % 2 === 0;
     ctx.fillStyle = isBlink ? "#ffffff" : "#666666";
-    ctx.fillText("PRESS SPACE OR ENTER TO DESCEND DEEPER", WIDTH / 2, 470);
+    let isTouch = ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+    let promptMsg = isTouch ? "TAP SCREEN OR ANY VIRTUAL KEY TO DESCEND" : "PRESS SPACE OR ENTER TO DESCEND DEEPER";
+    ctx.fillText(promptMsg, WIDTH / 2, 450);
 }
 
 function drawGameOverOverlay() {
