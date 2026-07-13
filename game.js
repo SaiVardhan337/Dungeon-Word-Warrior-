@@ -1507,16 +1507,16 @@ function drawHUD() {
 
     // Item 1: Freeze Scroll
     ctx.fillStyle = (player.items.freeze > 0) ? "#00ffff" : "#555";
-    ctx.fillText(`[1] ❄️  Freeze x${player.items.freeze}`, bx + 65, by + bh / 2);
+    ctx.fillText(`[1] ❄️ x${player.items.freeze}`, bx + 50, by + bh / 2);
 
     // Item 2: Fireball Scroll
     ctx.fillStyle = (player.items.fireball > 0) ? "#ff5500" : "#555";
-    ctx.fillText(`[2] 🔥 Fire x${player.items.fireball}`, bx + 160, by + bh / 2);
+    ctx.fillText(`[2] 🔥 x${player.items.fireball}`, bx + 150, by + bh / 2);
 
     // Item 3: Shield Potion
     ctx.fillStyle = (player.items.shield > 0) ? "#00e5ff" : "#555";
     if (shieldActive) ctx.fillStyle = "#ffd700";
-    ctx.fillText(`[3] 🛡️  Shield x${player.items.shield}`, bx + 250, by + bh / 2);
+    ctx.fillText(`[3] 🛡️ x${player.items.shield}`, bx + 250, by + bh / 2);
 
     ctx.restore();
 
