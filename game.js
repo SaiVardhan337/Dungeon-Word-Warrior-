@@ -537,18 +537,12 @@ window.addEventListener("keyup", (e) => {
     pressedKeys[e.key] = false;
 });
 
-// Canvas click listener for Pause button, active items, and mobile keyboard focus
+// Canvas click listener for Pause button, active items
 canvas.addEventListener("click", (e) => {
     sounds.init(); // initialize Web Audio context
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (WIDTH / rect.width);
     const y = (e.clientY - rect.top) * (HEIGHT / rect.height);
-
-    // Focus mobile virtual keyboard input
-    let mInput = document.getElementById("mobile-input");
-    if (mInput) {
-        mInput.focus();
-    }
 
     if (gameState === STATE_PLAY) {
         // Tappable Active Items Hotbar slots (x: 250 to 550, y: 545 to 590)
@@ -575,37 +569,62 @@ canvas.addEventListener("click", (e) => {
     }
 });
 
-// Mobile Input Capture Listener
-let mInput = document.getElementById("mobile-input");
-if (mInput) {
-    mInput.addEventListener("input", (e) => {
-        let val = mInput.value;
-        if (val.length > 0) {
-            let lastChar = val[val.length - 1];
-            if (gameState === STATE_PLAY) {
-                if (/[a-zA-Z]/.test(lastChar)) {
-                    handleTyping(lastChar.toLowerCase());
-                }
-            } else if (gameState === STATE_CUTSCENE) {
-                sounds.init();
-                sounds.click();
-                if (!cutsceneTextDone) {
-                    skipTypewriter();
-                } else {
-                    nextCutscenePanel();
-                }
-            } else if (gameState === STATE_LEVEL_CLEAR) {
-                sounds.pickup();
-                startLevel(gameLevel + 1);
-            } else if (gameState === STATE_GAME_OVER) {
-                sounds.pickup();
-                restartAdventure();
-            } else if (gameState === STATE_VICTORY) {
-                sounds.pickup();
-                resetGameVariables();
-            }
-            mInput.value = ""; // Keep it empty for next stroke
+// Centralized Game State Progression Helper for menus/cutscenes
+function advanceGameState() {
+    sounds.init();
+    if (gameState === STATE_CUTSCENE) {
+        sounds.click();
+        if (!cutsceneTextDone) {
+            skipTypewriter();
+        } else {
+            nextCutscenePanel();
         }
+    } else if (gameState === STATE_LEVEL_CLEAR) {
+        sounds.pickup();
+        startLevel(gameLevel + 1);
+    } else if (gameState === STATE_GAME_OVER) {
+        sounds.pickup();
+        restartAdventure();
+    } else if (gameState === STATE_VICTORY) {
+        sounds.pickup();
+        resetGameVariables();
+    }
+}
+
+// In-Game Retro Virtual Keyboard Event Handlers
+const virtualKeyboard = document.getElementById("virtual-keyboard");
+if (virtualKeyboard) {
+    // Detect Touch Support to conditionally show/hide keyboard
+    const isTouchDevice = ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+    if (isTouchDevice) {
+        virtualKeyboard.style.display = "flex";
+    }
+
+    // Capture virtual key taps
+    document.querySelectorAll(".kbd-key").forEach(btn => {
+        const triggerKey = (e) => {
+            e.preventDefault();
+            sounds.init();
+            let key = btn.getAttribute("data-key");
+
+            if (gameState === STATE_PLAY) {
+                // Resume game from suspend if needed
+                if (sounds.ctx && sounds.ctx.state === "suspended") {
+                    sounds.ctx.resume();
+                }
+                sounds.startMusic();
+
+                if (key !== " ") {
+                    handleTyping(key.toLowerCase());
+                }
+            } else {
+                advanceGameState();
+            }
+        };
+
+        // Bind both touchstart (fast reaction) and mousedown (desktop inspection/testing fallback)
+        btn.addEventListener("touchstart", triggerKey, { passive: false });
+        btn.addEventListener("mousedown", triggerKey);
     });
 }
 
@@ -1704,7 +1723,7 @@ function drawHUD() {
             ctx.textAlign = "center";
             ctx.fillStyle = "#88869a";
             ctx.font = '8px "Press Start 2P", monospace';
-            ctx.fillText("📱 TAP CANVAS TO SHOW KEYBOARD / USE ITEMS", WIDTH / 2, 525);
+            ctx.fillText("📱 TAP BUTTONS BELOW TO PLAY / USE ITEMS", WIDTH / 2, 525);
             ctx.restore();
         }
     }

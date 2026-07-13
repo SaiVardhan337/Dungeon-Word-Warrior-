@@ -150,3 +150,83 @@ footer {
         letter-spacing: 0.5px;
     }
 }
+
+/* Virtual Keyboard (Arcade Control Panel Style) */
+#virtual-keyboard {
+    display: none; /* Managed by JS - only shows on touch devices */
+    flex-direction: column;
+    gap: 6px;
+    padding: 15px;
+    background-color: #0b0a11;
+    border-top: 4px solid #1a1829;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 10px 20px rgba(0, 0, 0, 0.8);
+}
+
+.kbd-row {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    width: 100%;
+}
+
+.kbd-key {
+    background-color: #1b1929;
+    color: #e5e5e5;
+    border: 2px solid #3c3558;
+    border-radius: 6px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.6rem;
+    width: 44px;
+    height: 40px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s ease;
+    box-shadow: 0 3px 0 #28233c;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+/* Hover/Touch Active effects */
+.kbd-key:hover {
+    background-color: #24213a;
+    border-color: #5d5386;
+}
+
+.kbd-key:active {
+    background-color: #00e5ff;
+    color: #000;
+    border-color: #ffffff;
+    transform: translateY(3px);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.8);
+}
+
+/* Wide spacebar */
+.kbd-key.wide {
+    width: 120px;
+}
+
+@media (max-width: 600px) {
+    .kbd-key {
+        width: 28px;
+        height: 32px;
+        font-size: 0.5rem;
+        border-width: 1.5px;
+        border-radius: 4px;
+        box-shadow: 0 2px 0 #28233c;
+    }
+    .kbd-key.wide {
+        width: 80px;
+    }
+    #virtual-keyboard {
+        padding: 8px;
+        gap: 4px;
+    }
+    .kbd-row {
+        gap: 3px;
+    }
+}
