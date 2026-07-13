@@ -164,8 +164,17 @@ let player = {
     h: 120,
     shake: 0,
     flash: 0,
-    damageTexts: []
+    damageTexts: [],
+    items: {
+        freeze: 1,
+        fireball: 1,
+        shield: 1
+    }
 };
+
+let freezeTimer = 0; // Freeze countdown in frames
+let shieldActive = false; // Is active protective shield on Arjun?
+let levelClearRewardMsg = "";
 
 // Monster attributes
 let activeMonster = {
@@ -214,6 +223,105 @@ function togglePause() {
     }
 }
 
+// Active Items Functions
+function useFreezeScroll() {
+    if (player.items.freeze > 0 && freezeTimer === 0) {
+        player.items.freeze--;
+        freezeTimer = 300; // 5 seconds @ 60 FPS
+        sounds.freeze();
+        
+        // Spawn blue magic particle effects around the hero and screen
+        for (let i = 0; i < 25; i++) {
+            particles.push({
+                x: Math.random() * WIDTH,
+                y: Math.random() * HEIGHT,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2,
+                color: "#00ffff",
+                alpha: 1,
+                decay: 0.02 + Math.random() * 0.02,
+                size: 3 + Math.random() * 4
+            });
+        }
+    }
+}
+
+function useFireballScroll() {
+    if (player.items.fireball > 0 && activeWords.length > 0) {
+        player.items.fireball--;
+        sounds.fireball();
+
+        // Find the lowest active word on screen (word with largest y)
+        let target = activeWords[0];
+        let targetIdx = 0;
+        for (let i = 1; i < activeWords.length; i++) {
+            if (activeWords[i].y > target.y) {
+                target = activeWords[i];
+                targetIdx = i;
+            }
+        }
+
+        // If target was targetWord, unlock focus
+        if (target === targetWord) {
+            targetWord = null;
+        }
+
+        // Spawn a large fireball projectile shooting from the player to the word
+        projectiles.push({
+            x: player.x + 50,
+            y: player.y + 60,
+            targetX: target.x + 50,
+            targetY: target.y + 10,
+            speed: 14,
+            color: "#ff4500", // Orange-red fireball
+            word: target.text,
+            isFireball: true
+        });
+
+        // Delete the word from active list immediately
+        activeWords.splice(targetIdx, 1);
+        
+        // Update gems tracker
+        let gemIdx = spawnedWordCount - activeWords.length - 1;
+        if (gemIdx >= 0 && gemIdx < 10) {
+            wordGems[gemIdx] = "correct";
+        }
+        correctCount++;
+        score += 100;
+        
+        // Deal 1 damage to monster
+        activeMonster.hp--;
+        activeMonster.shake = 10;
+        activeMonster.flash = 5;
+        
+        if (activeMonster.hp <= 0) {
+            triggerMonsterDefeat();
+        }
+    }
+}
+
+function useShieldPotion() {
+    if (player.items.shield > 0 && !shieldActive) {
+        player.items.shield--;
+        shieldActive = true;
+        sounds.shield();
+        
+        // Spawn shield-wrap particles
+        for (let i = 0; i < 15; i++) {
+            particles.push({
+                x: player.x + 50 + (Math.random() - 0.5) * 30,
+                y: player.y + 60 + (Math.random() - 0.5) * 30,
+                vx: (Math.random() - 0.5) * 3,
+                vy: (Math.random() - 0.5) * 3,
+                color: "#33ccff",
+                alpha: 1,
+                decay: 0.03 + Math.random() * 0.03,
+                size: 2 + Math.random() * 4
+            });
+        }
+    }
+}
+
 // Register keyboard capture
 window.addEventListener("keydown", (e) => {
     pressedKeys[e.key] = true;
@@ -251,6 +359,23 @@ window.addEventListener("keydown", (e) => {
             sounds.ctx.resume();
         }
         sounds.startMusic();
+
+        // Handle Active Items: keys '1', '2', '3'
+        if (e.key === "1") {
+            useFreezeScroll();
+            e.preventDefault();
+            return;
+        }
+        if (e.key === "2") {
+            useFireballScroll();
+            e.preventDefault();
+            return;
+        }
+        if (e.key === "3") {
+            useShieldPotion();
+            e.preventDefault();
+            return;
+        }
 
         // Handle letter keypresses for typing
         const char = e.key;
@@ -344,6 +469,9 @@ function resetGameVariables() {
     player.xp = 0;
     player.maxXp = 100;
     player.damageTexts = [];
+    player.items = { freeze: 1, fireball: 1, shield: 1 };
+    freezeTimer = 0;
+    shieldActive = false;
 
     initCutscenePanel();
     sounds.stopMusic();
@@ -578,6 +706,25 @@ function triggerMonsterDefeat() {
             player.xp -= player.maxXp;
             player.maxXp = Math.round(player.maxXp * 1.3);
         }
+
+        // Active Item Reward (max capacity 3 per type)
+        let itemTypes = ["freeze", "fireball", "shield"];
+        let rolledType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+        let prettyNames = { freeze: "Freeze Scroll", fireball: "Fireball Scroll", shield: "Shield Potion" };
+        
+        if (player.items[rolledType] < 3) {
+            player.items[rolledType]++;
+            levelClearRewardMsg = `REWARD: +1 ${prettyNames[rolledType]}!`;
+        } else {
+            let candidates = itemTypes.filter(t => player.items[t] < 3);
+            if (candidates.length > 0) {
+                let fallbackType = candidates[Math.floor(Math.random() * candidates.length)];
+                player.items[fallbackType]++;
+                levelClearRewardMsg = `REWARD: +1 ${prettyNames[fallbackType]}!`;
+            } else {
+                levelClearRewardMsg = "INVENTORY FULL! (No Item Reward)";
+            }
+        }
     }, 800);
 }
 
@@ -659,6 +806,9 @@ function updateCutscene() {
 }
 
 function updateGameplay() {
+    // Decelerate active item freezeTimer
+    if (freezeTimer > 0) freezeTimer--;
+
     // Spawn falling words
     wordSpawnTimer++;
     let spawnRate = Math.max(70, 160 - (gameLevel - 1) * 8); // spawn faster at higher levels
@@ -674,21 +824,43 @@ function updateGameplay() {
         // Handle shake decay
         if (w.shake > 0) w.shake--;
 
-        // Fall
-        w.y += w.speed;
+        // Fall (slowed down by Freeze Scroll)
+        let speedMult = (freezeTimer > 0) ? 0.5 : 1.0;
+        w.y += w.speed * speedMult;
 
         // Reached Ground (Damage Trigger)
         if (w.y >= 485) {
-            sounds.hurt();
-            
-            // Player takes hit
-            player.hp = Math.max(0, player.hp - 20);
-            player.shake = 10;
-            player.flash = 8;
-            screenShake = 12;
+            if (shieldActive) {
+                // Shield blocks damage!
+                shieldActive = false;
+                sounds.shield();
+                player.flash = 5;
+                // Spawn blue shield block particles
+                for (let k = 0; k < 15; k++) {
+                    particles.push({
+                        x: player.x + 50 + (Math.random() - 0.5) * 40,
+                        y: player.y + 60 + (Math.random() - 0.5) * 40,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        color: "#33ccff",
+                        alpha: 1,
+                        decay: 0.03 + Math.random() * 0.02,
+                        size: 2 + Math.random() * 3
+                    });
+                }
+                player.damageTexts.push({ text: "BLOCKED", x: player.x + 30, y: player.y - 10, alpha: 1, color: "#33ccff" });
+            } else {
+                sounds.hurt();
+                
+                // Player takes hit
+                player.hp = Math.max(0, player.hp - 20);
+                player.shake = 10;
+                player.flash = 8;
+                screenShake = 12;
 
-            spawnRedExplosion(w.x, w.y);
-            player.damageTexts.push({ text: "-20 HP", x: player.x + 30, y: player.y - 10, alpha: 1, color: "#ff3333" });
+                spawnRedExplosion(w.x, w.y);
+                player.damageTexts.push({ text: "-20 HP", x: player.x + 30, y: player.y - 10, alpha: 1, color: "#ff3333" });
+            }
 
             // Mark Gem
             let gemIdx = spawnedWordCount - activeWords.length + i;
@@ -716,24 +888,28 @@ function updateProjectiles() {
 
         if (dist < p.speed) {
             // Hit!
-            activeMonster.hp = Math.max(0, activeMonster.hp - 1);
-            activeMonster.shake = 10;
-            activeMonster.flash = 8;
-            screenShake = 6;
+            if (p.isFireball) {
+                spawnFireBurst(p.targetX, p.targetY, 16);
+            } else {
+                activeMonster.hp = Math.max(0, activeMonster.hp - 1);
+                activeMonster.shake = 10;
+                activeMonster.flash = 8;
+                screenShake = 6;
 
-            // Damage popup
-            let dmg = player.atk + Math.round(Math.random() * 5);
-            activeMonster.damageTexts.push({
-                text: `-${dmg}`,
-                x: activeMonster.x + activeMonster.w / 2,
-                y: activeMonster.y - 10,
-                alpha: 1,
-                color: "#ffcc00"
-            });
+                // Damage popup
+                let dmg = player.atk + Math.round(Math.random() * 5);
+                activeMonster.damageTexts.push({
+                    text: `-${dmg}`,
+                    x: activeMonster.x + activeMonster.w / 2,
+                    y: activeMonster.y - 10,
+                    alpha: 1,
+                    color: "#ffcc00"
+                });
 
-            spawnSpellHitBurst(p.targetX, p.targetY, p.color);
+                spawnSpellHitBurst(p.targetX, p.targetY, p.color);
+                sounds.hit();
+            }
             projectiles.splice(i, 1);
-            sounds.hit();
         } else {
             p.x += (dx / dist) * p.speed;
             p.y += (dy / dist) * p.speed;
@@ -806,6 +982,23 @@ function spawnSpellHitBurst(x, y, color) {
             size: Math.random() * 6 + 3,
             life: 1.0,
             decay: 0.04
+        });
+    }
+}
+
+function spawnFireBurst(x, y, count) {
+    let colors = ["#ff4500", "#ff8c00", "#ffd700", "#ff3300"];
+    for (let i = 0; i < count; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let speed = Math.random() * 8 + 4;
+        particles.push({
+            x: x, y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            size: Math.random() * 8 + 4,
+            life: 1.0,
+            decay: 0.03 + Math.random() * 0.02
         });
     }
 }
@@ -974,6 +1167,22 @@ function drawGameplay() {
     // Draw projectiles & particles
     drawProjectilesAndParticles();
 
+    // Draw Frosted Border during active Freeze Scroll
+    if (freezeTimer > 0) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(0, 229, 255, 0.4)";
+        ctx.lineWidth = 16;
+        ctx.strokeRect(0, 0, WIDTH, HEIGHT);
+        // Add pulsing inner border overlay
+        let glowIntensity = Math.abs(Math.sin(Date.now() * 0.005)) * 0.15;
+        ctx.fillStyle = `rgba(0, 229, 255, ${0.05 + glowIntensity})`;
+        ctx.fillRect(0, 0, WIDTH, 12);
+        ctx.fillRect(0, HEIGHT - 12, WIDTH, 12);
+        ctx.fillRect(0, 0, 12, HEIGHT);
+        ctx.fillRect(WIDTH - 12, 0, 12, HEIGHT);
+        ctx.restore();
+    }
+
     // Draw HUD overlays
     drawHUD();
 
@@ -1024,6 +1233,20 @@ function drawCharacter(char, isPlayer) {
             ctx.setLineDash([4, 4]);
             ctx.strokeRect(cx - 6, cy - 6, char.w + 12, char.h + 12);
             ctx.setLineDash([]);
+        }
+
+        // Draw Shield Bubble if active
+        if (shieldActive) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(0, 229, 255, 0.75)";
+            ctx.lineWidth = 4;
+            let pulse = Math.sin(Date.now() * 0.01) * 3;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = "#00e5ff";
+            ctx.beginPath();
+            ctx.arc(cx + char.w / 2, cy + char.h / 2, Math.max(char.w, char.h) / 2 + 10 + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
         }
     } else {
         // Draw Monster
@@ -1096,8 +1319,8 @@ function drawWords() {
 
         // Draw capsule background
         ctx.fillStyle = isTarget ? "rgba(35, 10, 45, 0.9)" : "rgba(10, 10, 15, 0.8)";
-        ctx.strokeStyle = isTarget ? "#ffcc00" : "#444455";
-        ctx.lineWidth = isTarget ? 3 : 1;
+        ctx.strokeStyle = isTarget ? "#ffcc00" : (freezeTimer > 0 ? "#00b0ff" : "#444455");
+        ctx.lineWidth = isTarget ? 3 : (freezeTimer > 0 ? 2 : 1);
         
         ctx.beginPath();
         ctx.roundRect(wx - paddingX, wy - 18, textWidth + paddingX * 2, 28, 6);
@@ -1113,8 +1336,8 @@ function drawWords() {
                 // Typed letters (Green/Gold)
                 ctx.fillStyle = "#ffcc00";
             } else {
-                // Untyped letters
-                ctx.fillStyle = "#ffffff";
+                // Untyped letters (Frosty blue if frozen)
+                ctx.fillStyle = (freezeTimer > 0) ? "#b3f5ff" : "#ffffff";
             }
             
             ctx.fillText(letter, curX, wy);
@@ -1261,6 +1484,53 @@ function drawHUD() {
     ctx.fillStyle = "#00bbff";
     let xpRatio = player.xp / player.maxXp;
     ctx.fillRect(WIDTH - 135 - xpW, 48, xpW * xpRatio, 8);
+
+    // Draw Active Items Hotbar at the bottom center
+    ctx.save();
+    let bx = 250;
+    let by = 545;
+    let bw = 300;
+    let bh = 45;
+
+    ctx.fillStyle = "rgba(10, 8, 20, 0.85)";
+    ctx.strokeStyle = "#4b3c7a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Draw three items
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = '9px "Press Start 2P", monospace';
+
+    // Item 1: Freeze Scroll
+    ctx.fillStyle = (player.items.freeze > 0) ? "#00ffff" : "#555";
+    ctx.fillText(`[1] ❄️  Freeze x${player.items.freeze}`, bx + 65, by + bh / 2);
+
+    // Item 2: Fireball Scroll
+    ctx.fillStyle = (player.items.fireball > 0) ? "#ff5500" : "#555";
+    ctx.fillText(`[2] 🔥 Fire x${player.items.fireball}`, bx + 160, by + bh / 2);
+
+    // Item 3: Shield Potion
+    ctx.fillStyle = (player.items.shield > 0) ? "#00e5ff" : "#555";
+    if (shieldActive) ctx.fillStyle = "#ffd700";
+    ctx.fillText(`[3] 🛡️  Shield x${player.items.shield}`, bx + 250, by + bh / 2);
+
+    ctx.restore();
+
+    // Draw active Freeze timer countdown
+    if (freezeTimer > 0) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#00e5ff";
+        ctx.font = '11px "Press Start 2P", monospace';
+        let secondsLeft = (freezeTimer / 60).toFixed(1);
+        let isBlink = Math.floor(Date.now() / 250) % 2 === 0;
+        ctx.fillText(isBlink ? `❄️  TIME FROZEN: ${secondsLeft}s  ❄️` : `   TIME FROZEN: ${secondsLeft}s   `, WIDTH / 2, 525);
+        ctx.restore();
+    }
 }
 
 // Overlay Screens
@@ -1291,6 +1561,11 @@ function drawLevelClearOverlay() {
     ctx.fillText(`Max HP: +10 (${player.maxHp})`, WIDTH / 2, 335);
     ctx.fillText(`Attack Power: +5 (${player.atk})`, WIDTH / 2, 360);
     ctx.fillText(`Defense Power: +3 (${player.def})`, WIDTH / 2, 385);
+
+    // Item Reward Message
+    ctx.fillStyle = "#00e5ff";
+    ctx.font = '13px "Press Start 2P", monospace';
+    ctx.fillText(levelClearRewardMsg, WIDTH / 2, 422);
 
     ctx.font = '13px "Press Start 2P", monospace';
     let isBlink = Math.floor(Date.now() / 500) % 2 === 0;
