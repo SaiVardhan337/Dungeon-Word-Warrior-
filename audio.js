@@ -89,6 +89,18 @@ class SoundEngine {
         this.playTone([523, 659, 784, 1047], [0.12, 0.12, 0.12, 0.3], "square", 0.2);
     }
 
+    freeze() {
+        this.playTone([800, 600, 400], [0.1, 0.1, 0.15], "sine", 0.35);
+    }
+
+    fireball() {
+        this.playNoise(0.35, 0.5);
+    }
+
+    shield() {
+        this.playTone([500, 750, 1000], [0.04, 0.04, 0.15], "sine", 0.25);
+    }
+
     startMusic() {
         this.init();
         if (!this.ctx) return;
