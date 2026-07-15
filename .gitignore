@@ -1,0 +1,15 @@
+# Vercel and Environments
+.vercel
+.env*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE metadata
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
