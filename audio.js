@@ -65,8 +65,11 @@ class SoundEngine {
         noiseNode.start();
     }
 
-    click() {
-        this.playTone([600], [0.03], "square", 0.1);
+    click(charIndex = 0) {
+        // Melodic typing: play notes from a pentatonic scale based on character position
+        const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+        let freq = scale[charIndex % scale.length];
+        this.playTone([freq], [0.06], "square", 0.07);
     }
 
     hit() {
@@ -114,10 +117,17 @@ class SoundEngine {
             329.6, 0, 293.7, 261.6, 220, 0, 196, 207.7
         ];
 
-        // Check level periodically and schedule audio notes
-        this.musicInterval = setInterval(() => {
-            if (!this.ctx || this.ctx.state === "suspended") return;
-            
+        this.isPlayingMusic = true;
+
+        // Use a recursive setTimeout loop for dynamic tempo scaling
+        const tick = () => {
+            if (!this.isPlayingMusic || !this.ctx || this.ctx.state === "suspended") {
+                if (this.isPlayingMusic) {
+                    this.musicTimeout = setTimeout(tick, 200);
+                }
+                return;
+            }
+
             let currentLevel = window.gameLevel || 1;
             let time = this.ctx.currentTime;
             
@@ -159,13 +169,25 @@ class SoundEngine {
             }
 
             beat++;
-        }, 180); // Speed remains consistent, pitch shifts up, and tempo increases slightly via visual game loop tick if desired, but constant beat duration is clean.
+
+            // Calculate tempo multiplier based on threat level
+            let tempoMult = 1.0;
+            if (window.musicTempoMult !== undefined) {
+                tempoMult = window.musicTempoMult;
+            }
+            let beatDuration = 180 * tempoMult;
+
+            this.musicTimeout = setTimeout(tick, beatDuration);
+        };
+
+        tick();
     }
 
     stopMusic() {
-        if (this.musicInterval) {
-            clearInterval(this.musicInterval);
-            this.musicInterval = null;
+        this.isPlayingMusic = false;
+        if (this.musicTimeout) {
+            clearTimeout(this.musicTimeout);
+            this.musicTimeout = null;
         }
     }
 }

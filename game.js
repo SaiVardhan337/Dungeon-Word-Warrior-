@@ -15,6 +15,13 @@ const STATE_LEVEL_CLEAR = "level_clear";
 const STATE_GAME_OVER = "game_over";
 const STATE_VICTORY = "victory";
 const STATE_PAUSED = "paused";
+const STATE_BRANCH_CHOICE = "branch_choice";
+
+// Roguelike Branching Path Modifiers
+let speedModifierMult = 1.0;
+let wordLengthMod = 0;
+let currentChoices = null;
+let selectedBranchModifier = null;
 
 // Word Banks
 const TIER_1 = ["bat", "cat", "dog", "run", "hit", "dig", "pit", "mud", "fog", "web", "cry", "hop", "leg", "arm", "eye", "lip", "box", "jar", "cup", "map", "sun", "sky", "fly", "old", "new", "big", "hot", "cold", "dark", "rock", "bone", "cave", "mist", "dust", "fire", "ash", "trap", "fall", "sink", "drop", "spin", "glow", "rush", "push", "jump", "step", "trip", "slip"];
@@ -513,7 +520,22 @@ window.addEventListener("keydown", (e) => {
     if (gameState === STATE_LEVEL_CLEAR) {
         if (e.key === " " || e.key === "Enter") {
             sounds.pickup();
-            startLevel(gameLevel + 1);
+            if (gameLevel < 5) {
+                setupBranchChoices();
+                gameState = STATE_BRANCH_CHOICE;
+            } else {
+                startLevel(gameLevel + 1); // Triggers victory
+            }
+        }
+        e.preventDefault();
+        return;
+    }
+
+    if (gameState === STATE_BRANCH_CHOICE) {
+        if (e.key === "l" || e.key === "L" || e.key === "ArrowLeft") {
+            selectBranch("left");
+        } else if (e.key === "r" || e.key === "R" || e.key === "ArrowRight") {
+            selectBranch("right");
         }
         e.preventDefault();
         return;
@@ -571,6 +593,15 @@ canvas.addEventListener("click", (e) => {
         // Click anywhere to resume when paused
         sounds.click();
         togglePause();
+    } else if (gameState === STATE_BRANCH_CHOICE) {
+        // Left Box: x: 60 to 380, y: 210 to 410
+        if (x >= 60 && x <= 380 && y >= 210 && y <= 410) {
+            selectBranch("left");
+        }
+        // Right Box: x: 420 to 740, y: 210 to 410
+        else if (x >= 420 && x <= 740 && y >= 210 && y <= 410) {
+            selectBranch("right");
+        }
     }
 });
 
@@ -586,7 +617,12 @@ function advanceGameState() {
         }
     } else if (gameState === STATE_LEVEL_CLEAR) {
         sounds.pickup();
-        startLevel(gameLevel + 1);
+        if (gameLevel < 5) {
+            setupBranchChoices();
+            gameState = STATE_BRANCH_CHOICE;
+        } else {
+            startLevel(gameLevel + 1); // Triggers victory
+        }
     } else if (gameState === STATE_GAME_OVER) {
         sounds.pickup();
         restartAdventure();
@@ -622,6 +658,10 @@ if (virtualKeyboard) {
                 if (key !== " ") {
                     handleTyping(key.toLowerCase());
                 }
+            } else if (gameState === STATE_BRANCH_CHOICE) {
+                let lowerKey = key.toLowerCase();
+                if (lowerKey === "l") selectBranch("left");
+                else if (lowerKey === "r") selectBranch("right");
             } else {
                 advanceGameState();
             }
@@ -660,6 +700,12 @@ function resetGameVariables() {
 
     initCutscenePanel();
     sounds.stopMusic();
+
+    // Reset roguelike path modifiers and tempo
+    speedModifierMult = 1.0;
+    wordLengthMod = 0;
+    selectedBranchModifier = null;
+    window.musicTempoMult = 1.0;
 }
 
 function restartAdventure() {
@@ -686,6 +732,14 @@ function startLevel(lvl) {
     player.atk = 10 + (lvl - 1) * 5;
     player.def = 5 + (lvl - 1) * 3;
 
+    // Reset and apply selected branching path modifiers
+    speedModifierMult = 1.0;
+    wordLengthMod = 0;
+    if (selectedBranchModifier) {
+        selectedBranchModifier();
+        selectedBranchModifier = null; // consume
+    }
+
     // Monster setup
     let mIdx = (lvl - 1) % 5;
     activeMonster.name = MONSTER_NAMES[lvl - 1];
@@ -703,6 +757,11 @@ function startLevel(lvl) {
 
     // Setup word queue: pick 10 words for the level from corresponding tier
     let tierPool = LEVEL_TIERS[lvl] || TIER_1;
+    if (wordLengthMod > 0) {
+        let nextTier = LEVEL_TIERS[lvl + 1] || tierPool;
+        tierPool = tierPool.concat(nextTier).filter(w => w.length > 5);
+        if (tierPool.length < 10) tierPool = nextTier;
+    }
     let shuffled = [...tierPool].sort(() => 0.5 - Math.random());
     wordQueue = shuffled.slice(0, 10);
     spawnedWordCount = 0;
@@ -772,7 +831,7 @@ function spawnNextWord() {
     if (gameLevel >= 2) {
         levelSpeedBonus = 0.5 + (gameLevel - 2) * 0.45;
     }
-    let speed = baseSpeed + levelSpeedBonus + Math.random() * 0.3;
+    let speed = (baseSpeed + levelSpeedBonus + Math.random() * 0.3) * speedModifierMult;
     speed = Math.min(4.8, speed); // Speed cap
 
     activeWords.push({
@@ -793,7 +852,7 @@ function handleTyping(letter) {
         if (letter === nextChar) {
             levelCorrectKeys++;
             targetWord.typed++;
-            sounds.click();
+            sounds.click(targetWord.typed - 1);
             spawnTypeParticles(targetWord.x + targetWord.typed * 10, targetWord.y);
 
             // Complete word
@@ -815,7 +874,7 @@ function handleTyping(letter) {
             matchedWords.sort((a, b) => b.y - a.y);
             targetWord = matchedWords[0];
             targetWord.typed = 1;
-            sounds.click();
+            sounds.click(0);
             spawnTypeParticles(targetWord.x + 10, targetWord.y);
 
             if (targetWord.typed === targetWord.text.length) {
@@ -1000,6 +1059,18 @@ function updateCutscene() {
 }
 
 function updateGameplay() {
+    // Calculate dynamic music tempo multiplier based on word threat level (how low words are)
+    let maxY = 0;
+    activeWords.forEach(w => {
+        if (w.y > maxY) maxY = w.y;
+    });
+    if (maxY > 150) {
+        let ratio = Math.max(0, Math.min(1, (maxY - 150) / 335));
+        window.musicTempoMult = 1.0 - ratio * 0.35; // up to 35% faster tempo
+    } else {
+        window.musicTempoMult = 1.0;
+    }
+
     // Decelerate active item freezeTimer
     if (freezeTimer > 0) freezeTimer--;
 
@@ -1389,6 +1460,8 @@ function drawGameplay() {
         drawVictoryOverlay();
     } else if (gameState === STATE_PAUSED) {
         drawPauseOverlay();
+    } else if (gameState === STATE_BRANCH_CHOICE) {
+        drawBranchChoiceOverlay();
     }
 }
 
@@ -1889,4 +1962,160 @@ function drawPauseOverlay() {
     ctx.fillText("PRESS 'ESC' TO RESUME", WIDTH / 2, y + 90);
     ctx.fillStyle = "#88869a";
     ctx.fillText("OR CLICK ANYWHERE TO CONTINUE", WIDTH / 2, y + 115);
+}
+
+// Branching Path Roguelike Templates
+const BRANCH_TEMPLATES = [
+    {
+        name: "Lava Forge",
+        desc: "+1 Fireball Scroll, but words are 15% faster",
+        apply: () => {
+            player.items.fireball = Math.min(3, player.items.fireball + 1);
+            speedModifierMult = 1.15;
+            wordLengthMod = 0;
+            triggerScreenFlash("rgba(255, 69, 0, 0.3)", 20);
+        }
+    },
+    {
+        name: "Frozen Sanctum",
+        desc: "15% slower words, but words are longer (+1 letter)",
+        apply: () => {
+            speedModifierMult = 0.85;
+            wordLengthMod = 1;
+            triggerScreenFlash("rgba(0, 229, 255, 0.3)", 20);
+        }
+    },
+    {
+        name: "Mystic Alcove",
+        desc: "+1 Shield Potion and +10 Max HP (Heal)",
+        apply: () => {
+            player.items.shield = Math.min(3, player.items.shield + 1);
+            player.maxHp += 10;
+            player.hp = player.maxHp;
+            speedModifierMult = 1.0;
+            wordLengthMod = 0;
+            triggerScreenFlash("rgba(0, 255, 128, 0.3)", 20);
+        }
+    },
+    {
+        name: "Chrono Vault",
+        desc: "+1 Freeze Scroll, but -10 Max HP penalty",
+        apply: () => {
+            player.items.freeze = Math.min(3, player.items.freeze + 1);
+            player.maxHp = Math.max(50, player.maxHp - 10);
+            player.hp = Math.min(player.hp, player.maxHp);
+            speedModifierMult = 1.0;
+            wordLengthMod = 0;
+            triggerScreenFlash("rgba(186, 85, 211, 0.3)", 20);
+        }
+    }
+];
+
+function setupBranchChoices() {
+    // Pick 2 random unique templates
+    let shuffled = [...BRANCH_TEMPLATES].sort(() => 0.5 - Math.random());
+    currentChoices = {
+        left: shuffled[0],
+        right: shuffled[1]
+    };
+}
+
+function selectBranch(choice) {
+    sounds.pickup();
+    let selectedOption = currentChoices[choice];
+    selectedBranchModifier = selectedOption.apply;
+    startLevel(gameLevel + 1);
+}
+
+function drawBranchChoiceOverlay() {
+    ctx.fillStyle = "rgba(10, 8, 16, 0.94)";
+    ctx.fillRect(0, 80, WIDTH, HEIGHT - 80);
+
+    // Header Title
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffcc00";
+    ctx.font = '22px "Press Start 2P", monospace';
+    ctx.fillText("CHOOSE YOUR PATH", WIDTH / 2, 140);
+
+    ctx.fillStyle = "#88869a";
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillText("Which way will Arjun descend?", WIDTH / 2, 175);
+
+    // Option Cards
+    // Left Option Card: x: 60 to 380, y: 210 to 410
+    ctx.save();
+    let leftGlow = Math.sin(Date.now() * 0.004) * 2 + 3;
+    ctx.shadowBlur = leftGlow;
+    ctx.shadowColor = "#00e5ff";
+    ctx.fillStyle = "rgba(20, 18, 35, 0.85)";
+    ctx.fillRect(60, 210, 320, 200);
+    ctx.strokeStyle = "#00e5ff";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(60, 210, 320, 200);
+    ctx.restore();
+
+    ctx.fillStyle = "#00e5ff";
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.fillText("[L] LEFT PATH", 220, 250);
+    
+    ctx.fillStyle = "#ffffff";
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillText(currentChoices.left.name.toUpperCase(), 220, 290);
+    
+    ctx.fillStyle = "#88869a";
+    ctx.font = '9px "Press Start 2P", monospace';
+    // Wrap description lines
+    let leftLines = wrapText(currentChoices.left.desc, 22);
+    leftLines.forEach((line, idx) => {
+        ctx.fillText(line, 220, 335 + idx * 18);
+    });
+
+    // Right Option Card: x: 420 to 740, y: 210 to 410
+    ctx.save();
+    let rightGlow = Math.sin(Date.now() * 0.004 + Math.PI) * 2 + 3;
+    ctx.shadowBlur = rightGlow;
+    ctx.shadowColor = "#ba55d3";
+    ctx.fillStyle = "rgba(20, 18, 35, 0.85)";
+    ctx.fillRect(420, 210, 320, 200);
+    ctx.strokeStyle = "#ba55d3";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(420, 210, 320, 200);
+    ctx.restore();
+
+    ctx.fillStyle = "#ba55d3";
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.fillText("[R] RIGHT PATH", 580, 250);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillText(currentChoices.right.name.toUpperCase(), 580, 290);
+
+    ctx.fillStyle = "#88869a";
+    ctx.font = '9px "Press Start 2P", monospace';
+    let rightLines = wrapText(currentChoices.right.desc, 22);
+    rightLines.forEach((line, idx) => {
+        ctx.fillText(line, 580, 335 + idx * 18);
+    });
+
+    // Footer Help Text
+    ctx.fillStyle = "#ffd700";
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.fillText("TAP CARDS DIRECTLY OR PRESS L / R TO CHOOSE", WIDTH / 2, 455);
+}
+
+// Simple text wrapper utility for clean card displays
+function wrapText(text, maxChars) {
+    let words = text.split(" ");
+    let lines = [];
+    let curLine = "";
+    words.forEach(w => {
+        if ((curLine + w).length <= maxChars) {
+            curLine += (curLine ? " " : "") + w;
+        } else {
+            lines.push(curLine);
+            curLine = w;
+        }
+    });
+    if (curLine) lines.push(curLine);
+    return lines;
 }
