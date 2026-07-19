@@ -85,8 +85,7 @@ Then visit: `http://localhost:8000`
 ### Option B: Node Static Server
 ```bash
 npx serve .
-```
-Then visit: `http://localhost:3000`
+
 
 ---
 
